@@ -1,27 +1,27 @@
 ####
-# This Dockerfile is used in order to build a container that runs the Quarkus application in native (no JVM) mode.
+# Imagen nativa (GraalVM / Mandrel). Construir el binario antes:
 #
-# Before building the container image run:
+#   ./mvnw -DskipTests -Dnative -Dquarkus.native.container-build=true package
 #
-# ./mvnw package -Pnative
+# Imagen:
 #
-# Then, build the image with:
+#   source ../../deployment/sp-demo-images.env.sh
+#   podman build -f src/main/docker/Dockerfile.native -t "${SP_IMAGE_EDGE_MANAGER_NATIVE}" .
 #
-# docker build -f src/main/docker/Dockerfile.native -t quarkus/code-with-quarkus .
+# Ejecución local:
 #
-# Then run the container using:
+#   podman run --rm -p 8080:8080 "${SP_IMAGE_EDGE_MANAGER_NATIVE}"
 #
-# docker run -i --rm -p 8080:8080 quarkus/code-with-quarkus
-#
-###
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.5
+####
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.5
 WORKDIR /work/
 RUN chown 1001 /work \
     && chmod "g+rwX" /work \
     && chown 1001:root /work
-COPY --chown=1001:root target/*-runner /work/application
+COPY --chown=1001:root target/manager-1.0.0-runner /work/application
+RUN chmod +x /work/application
 
 EXPOSE 8080
 USER 1001
 
-CMD ["./application", "-Dquarkus.http.host=0.0.0.0"]
+ENTRYPOINT ["./application", "-Dquarkus.http.host=0.0.0.0"]

@@ -1,0 +1,17 @@
+# PVC del workbench. La consola de OpenShift AI crea el volumen como <nombre>-storage.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wb1-storage
+  namespace: tf
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  volumeMode: Filesystem
+  # storageClassName: ...  # descomenta si hace falta en tu clúster

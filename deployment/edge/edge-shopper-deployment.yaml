@@ -1,0 +1,73 @@
+# Edge Shopper: Quarkus + Camel Quarkus web app (detection, ingestion, MQTT, S3, feeder).
+# Deployment + Service **edge-shopper** (same naming pattern as edge-manager, edge-monitor).
+# Catalogue: same ConfigMap **catalogue** as Camel K price-engine (key catalogue.json → /deployments/config).
+#
+# Image: quay.io/<org>/sp-edge-to-cloud-data-pipelines-demo:edge-shopper-jvm
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-shopper
+  namespace: edge1
+  labels:
+    app.kubernetes.io/name: edge-shopper
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.openshift.io/runtime: camel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-shopper
+  template:
+    metadata:
+      labels:
+        app: edge-shopper
+        app.kubernetes.io/name: edge-shopper
+        app.openshift.io/runtime: camel
+    spec:
+      containers:
+        - name: edge-shopper
+          image: quay.io/cestayg/sp-edge-to-cloud-data-pipelines-demo:edge-shopper-jvm
+          imagePullPolicy: Always
+          env:
+            - name: AWS_REQUEST_CHECKSUM_CALCULATION
+              value: WHEN_REQUIRED
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          volumeMounts:
+            - name: catalogue
+              mountPath: /deployments/config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+      volumes:
+        - name: catalogue
+          configMap:
+            name: catalogue
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-shopper
+  namespace: edge1
+  labels:
+    app.kubernetes.io/name: edge-shopper
+    app.openshift.io/runtime: camel
+spec:
+  selector:
+    app: edge-shopper
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

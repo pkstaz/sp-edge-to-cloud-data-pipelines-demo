@@ -1,27 +1,18 @@
-Introduction
-============
+Central delivery — Quarkus + Camel Quarkus (sin Camel K en runtime)
 
-This project contains services to control the delivery of AI models.
+Escucha el topic Kafka `trigger` en `central` y llama al EventListener Tekton en `tf`.
 
+Documentación completa (build, Quay, OpenShift):
+  README.md  (en este directorio)
 
-Prerequisites
-=============
+Despliegue OpenShift (después de publicar la imagen):
+  oc project central
+  oc apply -f ../../deployment/central/central-delivery-deployment.yaml
 
-Camel consumes Kafka events to trigger the pipeline requested for a given Edge environment.
+Imagen Quay JVM (mismo repositorio que edge-manager, otro tag):
+  bash ../../deployment/build-push-images.sh central-delivery-jvm
+  # o con all: bash ../../deployment/build-push-images.sh
 
-Ensure a Kafka instance exists in the 'central' namespace.
+Variables de imagen: ../../deployment/sp-demo-images.env.sh
 
-Ensure Pipeline triggers are defined in the platform.
-
-
-Deploy in Openshift
-===================
-
-Ensure your OpenShift client points to the 'central' namespace:
-
-oc project central
-
-Execute the command below to deploy the system:
-
-./mvnw clean package -DskipTests -Dquarkus.kubernetes.deploy=true
-
+Ya no se usa: ./mvnw clean package -DskipTests -Dquarkus.kubernetes.deploy=true

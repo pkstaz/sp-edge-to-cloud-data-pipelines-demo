@@ -1,0 +1,65 @@
+# Edge Monitor: consume Kafka topic named after the edge namespace (e.g. edge1) and forward to MQTT (AMQ on edge).
+# Quarkus + Camel Quarkus (same pattern as edge-manager / central-feeder).
+#
+# Image: quay.io/<org>/sp-edge-to-cloud-data-pipelines-demo:edge-monitor-jvm
+# Prerequisites: Kafka Ready in central (my-cluster-kafka-bootstrap), AMQ MQTT Service broker-amq-mqtt-0-svc in this namespace.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-monitor
+  namespace: edge1
+  labels:
+    app.kubernetes.io/name: edge-monitor
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.openshift.io/runtime: camel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-monitor
+  template:
+    metadata:
+      labels:
+        app: edge-monitor
+        app.kubernetes.io/name: edge-monitor
+        app.openshift.io/runtime: camel
+    spec:
+      containers:
+        - name: edge-monitor
+          image: quay.io/cestayg/sp-edge-to-cloud-data-pipelines-demo:edge-monitor-jvm
+          imagePullPolicy: Always
+          env:
+            - name: AWS_REQUEST_CHECKSUM_CALCULATION
+              value: WHEN_REQUIRED
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-monitor
+  namespace: edge1
+  labels:
+    app.kubernetes.io/name: edge-monitor
+    app.openshift.io/runtime: camel
+spec:
+  selector:
+    app: edge-monitor
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

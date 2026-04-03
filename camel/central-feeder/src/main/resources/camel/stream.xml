@@ -111,11 +111,12 @@
             <otherwise>
                 <split>
                     <tokenize token="\n"/>
-                    <!-- <to uri="log:debug?showAll=true"/> -->
-                    <when>
-                        <simple>${header.CamelSplitComplete} == true</simple>
-                        <bean ref="controller" method="init(${header.CamelSplitSize})"/>
-                    </when>
+                    <choice>
+                        <when>
+                            <simple>${header.CamelSplitComplete} == true</simple>
+                            <bean ref="controller" method="init(${header.CamelSplitSize})"/>
+                        </when>
+                    </choice>
                 </split>
             </otherwise>
         </choice>
@@ -127,7 +128,7 @@
 
     <route id="check-pending-work">
         <from uri="direct:check-pending-work"/>
-        <!-- <choice> -->
+        <choice>
             <when>
                 <method ref="controller" method="isBusy(${header.edgeId})"/>
                 <log message="busy: ignoring ZIP request"/>
@@ -139,10 +140,7 @@
                 </setBody>
                 <stop/>
             </when>
-<!--             <otherwise>
-                <bean ref="controller" method="setEdgeId(${header.edgeId})"/>
-            </otherwise>
-        </choice> -->
+        </choice>
     </route>
 
 
@@ -162,7 +160,7 @@
         <from uri="direct:notify-monitor"/>
 
         <!-- <toD uri="{{ds:aws2-s3}}:{{edge.id}}-data?operation=listObjects"/> -->
-        <toD uri="{{ds:aws2-s3}}:${bean:controller?method=getEdgeId}-data?operation=listObjects"/>
+        <toD uri="aws2-s3:${bean:controller?method=getEdgeId}-data?operation=listObjects"/>
 
         <log message="size of collection: ${body.size}"/>
 

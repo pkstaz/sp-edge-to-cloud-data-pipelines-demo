@@ -23,6 +23,6 @@
       <setBody>
         <simple>{"id-edge":"${body}"}</simple>
       </setBody>
-      <to uri="http:el-train-model-listener.tf.svc:8080"/>
+      <to uri="{{tekton.eventlistener.url}}"/>
     </route>
 </routes>

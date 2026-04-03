@@ -1,0 +1,35 @@
+# Camel K IntegrationPlatform for OpenShift (community operator 2.x).
+# Creates the platform CR so Integrations leave phase "Waiting For Platform" and can build kits.
+# Prerequisites: Camel K operator installed; its watch scope must include namespace edge1.
+#
+# Run oc/kamel commands that reference this file from the REPOSITORY ROOT only
+# (e.g. not from camel/edge-shopper/camel-price — deployment/edge/... would not exist there).
+#
+# Registry push (fixes Jib 401 Unauthorized on internal registry):
+#   The builder must push kit images to the cluster registry. Create the secret first (same namespace):
+#     oc create secret docker-registry camel-k-registry -n edge1 \
+#       --docker-server=image-registry.openshift-image-registry.svc:5000 \
+#       --docker-username=unused \
+#       --docker-password="$(oc whoami -t)"
+#   Use a user/token that can push to this project (e.g. oc whoami has role to update imagestreams in edge1).
+#   If the secret already exists: oc delete secret camel-k-registry -n edge1 && (re-run create above).
+#
+# From repo root: oc apply -f deployment/edge/integration-platform-camel-k.yaml
+# Verify: oc get integrationplatform camel-k -n edge1
+#          oc wait --for=condition=Ready integrationplatform/camel-k -n edge1 --timeout=300s
+# For another namespace, change metadata.namespace, spec.build.registry.organization, secret name/namespace, and re-apply with -n <ns>.
+---
+apiVersion: camel.apache.org/v1
+kind: IntegrationPlatform
+metadata:
+  name: camel-k
+  namespace: edge1
+  labels:
+    app: camel-k
+spec:
+  profile: OpenShift
+  build:
+    registry:
+      address: image-registry.openshift-image-registry.svc:5000
+      organization: edge1
+      secret: camel-k-registry

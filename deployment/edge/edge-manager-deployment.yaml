@@ -1,0 +1,68 @@
+# Edge Manager: copia modelos desde el bucket {EDGE_ID}-ready en MinIO central (vía Skupper minio-central)
+# hacia production en MinIO local (minio-service en el mismo namespace).
+#
+# Imagen: quay.io/<org>/sp-edge-to-cloud-data-pipelines-demo:edge-manager-jvm (un repo Quay, tags por componente).
+# Nativo: tag edge-manager-native (BACKLOG.md).
+# (Solution Pattern: Edge-to-Core Data Pipelines for AI/ML — ver deployment/sp-demo-images.env.sh)
+# pullSecret: dockercfg para quay.io si el repo es privado.
+# Icono en Topology (consola Developer): app.openshift.io/runtime=camel (mismo criterio que serving/java/svc-ai).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-manager
+  namespace: edge1
+  labels:
+    app.kubernetes.io/name: edge-manager
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.openshift.io/runtime: camel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-manager
+  template:
+    metadata:
+      labels:
+        app: edge-manager
+        app.openshift.io/runtime: camel
+    spec:
+      containers:
+        - name: edge-manager
+          image: quay.io/cestayg/sp-edge-to-cloud-data-pipelines-demo:edge-manager-jvm
+          imagePullPolicy: Always
+          env:
+            # Misma razón que Dockerfile.jvm (SDK 2.30+ vs MinIO)
+            - name: AWS_REQUEST_CHECKSUM_CALCULATION
+              value: WHEN_REQUIRED
+            - name: EDGE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-manager
+  namespace: edge1
+  labels:
+    app.kubernetes.io/name: edge-manager
+    app.openshift.io/runtime: camel
+spec:
+  selector:
+    app: edge-manager
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

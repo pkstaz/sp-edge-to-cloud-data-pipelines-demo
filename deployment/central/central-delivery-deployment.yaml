@@ -1,0 +1,61 @@
+# Central delivery: consume topic Kafka `trigger` y dispara el EventListener Tekton (namespace `tf`).
+#
+# Imagen: quay.io/<org>/sp-edge-to-cloud-data-pipelines-demo:central-delivery-jvm (mismo repo Quay que edge-manager).
+# Variables: deployment/sp-demo-images.env.sh — CENTRAL_DELIVERY_JVM_TAG si usas otro tag.
+# pullSecret: dockercfg para quay.io si el repo es privado.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: central-delivery
+  namespace: central
+  labels:
+    app.kubernetes.io/name: central-delivery
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.openshift.io/runtime: camel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: central-delivery
+  template:
+    metadata:
+      labels:
+        app: central-delivery
+        app.openshift.io/runtime: camel
+    spec:
+      containers:
+        - name: central-delivery
+          image: quay.io/cestayg/sp-edge-to-cloud-data-pipelines-demo:central-delivery-jvm
+          imagePullPolicy: Always
+          env:
+            # Sobrescribe application.properties si cambias nombre/ns del EventListener
+            - name: TEKTON_EVENTLISTENER_URL
+              value: http://el-train-model-listener.tf.svc:8080
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: central-delivery
+  namespace: central
+  labels:
+    app.kubernetes.io/name: central-delivery
+    app.openshift.io/runtime: camel
+spec:
+  selector:
+    app: central-delivery
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

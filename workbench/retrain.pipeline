@@ -224,7 +224,7 @@
               "description": "",
               "default_value": {
                 "type": "String",
-                "value": ""
+                "value": "http://minio-service.central.svc:9000"
               },
               "required": true
             },

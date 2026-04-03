@@ -1,11 +1,28 @@
+# TensorFlow Serving en edge1: lee el modelo desde el bucket MinIO local **production**
+# (misma credencial que MinIO edge: Secret minio-secret).
+# Ajusta MODEL_NAME / MODEL_BASE_PATH si el pipeline publica otra ruta bajo production.
+#
+# REST (inferencia HTTP): puerto 8501 en el pod → Service → Route tf-server.
+#
+# Icono Topology (Developer → Topology): la consola busca icon-<app.openshift.io/runtime> y luego
+# icon-<app.kubernetes.io/name> (openshift/console). No hay icon-tensorflow en el catálogo; con
+# name=tf-server ambos fallan y se ve el círculo genérico. Mantenemos runtime=tensorflow y
+# app.kubernetes.io/name=python como respaldo para mostrar el icono stock Python (ecosistema ML).
+# Logo de marca: deployment/edge/icons/tensorflow.svg
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: tf-server
+  namespace: edge1
   labels:
     app: tf-server
-  name: tf-server
+    app.kubernetes.io/component: tensorflow-serving
+    app.kubernetes.io/name: python
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.openshift.io/runtime: tensorflow
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: tf-server
@@ -14,65 +31,85 @@ spec:
       labels:
         app: tf-server
         version: v1
+        app.kubernetes.io/component: tensorflow-serving
+        app.kubernetes.io/name: python
+        app.openshift.io/runtime: tensorflow
     spec:
       containers:
-      - image: tensorflow/serving:2.6.0
-        args:
-          - '--load_retry_interval_micros=5000000'
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          initialDelaySeconds: 30
-          periodSeconds: 30
-          tcpSocket:
-            port: 8500
-        name: tf-server
-        ports:
-        - containerPort: 8500
-        # - containerPort: 9000
-        env:
-        - name: MODEL_NAME
-          value: tea_model_b64
-        - name: MODEL_BASE_PATH
-          value: s3://production/models
-        - name: S3_ENDPOINT
-          value: http://minio-service:9000
-        - name: AWS_REGION
-          value: 'us-east-2'
-        - name: AWS_ACCESS_KEY_ID
-          valueFrom:
-            secretKeyRef:
-              name: minio-secret
-              key: minio_root_user
-        - name: AWS_SECRET_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: minio-secret
-              key: minio_root_password
+        - name: tf-server
+          image: tensorflow/serving:2.6.0
+          args:
+            - '--load_retry_interval_micros=5000000'
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            tcpSocket:
+              port: 8500
+          ports:
+            - containerPort: 8500
+              name: grpc
+              protocol: TCP
+            - containerPort: 8501
+              name: rest
+              protocol: TCP
+          env:
+            - name: MODEL_NAME
+              value: tea_model_b64
+            - name: MODEL_BASE_PATH
+              value: s3://production/models
+            - name: S3_ENDPOINT
+              value: http://minio-service:9000
+            - name: AWS_REGION
+              value: us-east-2
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: minio_root_user
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: minio_root_password
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  name: tf-server
+  namespace: edge1
   labels:
     app: tf-server
-  name: tf-server
+    app.kubernetes.io/component: tensorflow-serving
+    app.kubernetes.io/name: python
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.openshift.io/runtime: tensorflow
 spec:
+  type: ClusterIP
   ports:
-  - name: http-tf-serving
-    port: 8501
-    targetPort: 8501
-  # - name: grpc-tf-serving
-  #   port: 9000
-  #   targetPort: 9000   
+    - name: http-tf-serving
+      port: 8501
+      targetPort: rest
   selector:
     app: tf-server
-  type: NodePort
 ---
-kind: Route
 apiVersion: route.openshift.io/v1
+kind: Route
 metadata:
+  name: tf-server
+  namespace: edge1
   labels:
     app: tf-server
-  name: tf-server
+    app.kubernetes.io/component: tensorflow-serving
+    app.kubernetes.io/name: python
+    app.openshift.io/runtime: tensorflow
 spec:
   to:
     kind: Service

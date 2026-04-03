@@ -1,8 +1,14 @@
-kind: ActiveMQArtemis
+# ActiveMQArtemis for Red Hat AMQ Broker Operator 7.12.x (CRD: broker.amq.io/v1beta1).
+# image: placeholder — operator selects the broker image for the installed operator version (see RH docs).
+# CR metadata.name broker-amq + acceptor name "mqtt" → Service broker-amq-mqtt-0-svc (keep route/app configs in sync).
+# Apply: oc apply -f deployment/edge/amq-broker.yaml -n edge1
+---
 apiVersion: broker.amq.io/v1beta1
+kind: ActiveMQArtemis
 metadata:
-  application: broker-amq-app
   name: broker-amq
+  labels:
+    application: broker-amq-app
 spec:
   deploymentPlan:
     image: placeholder

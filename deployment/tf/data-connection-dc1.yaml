@@ -1,0 +1,28 @@
+# OpenShift AI — Data connection S3 (README: dc1 → MinIO en central).
+# - connections API (cargas): opendatahub.io/connection-type-protocol
+# - pestaña Connections del dashboard: exige label opendatahub.io/dashboard=true y
+#   anotación opendatahub.io/connection-type-ref o opendatahub.io/connection-type
+#   (ver odh-dashboard useConnections + isConnection).
+# Ref: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.3/html/working_on_projects/using-connections_projects
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dc1
+  namespace: tf
+  labels:
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/managed: "true"
+  annotations:
+    openshift.io/display-name: dc1
+    opendatahub.io/connection-type-protocol: s3
+    opendatahub.io/connection-type-ref: s3
+    opendatahub.io/connection-type: s3
+type: Opaque
+stringData:
+  AWS_S3_ENDPOINT: http://minio-service.central.svc:9000
+  AWS_S3_BUCKET: workbench
+  # The following credentials are for demo purposes only [gh:demo-credentials]
+  AWS_ACCESS_KEY_ID: minio
+  AWS_SECRET_ACCESS_KEY: minio123 
+  AWS_DEFAULT_REGION: none

@@ -18,8 +18,14 @@ package org.apache.camel.example;
 
 import org.apache.camel.builder.RouteBuilder;
 
-
 public class Routes extends RouteBuilder {
+
+    static {
+        if (System.getenv("AWS_REQUEST_CHECKSUM_CALCULATION") == null
+                && System.getProperty("aws.requestChecksumCalculation") == null) {
+            System.setProperty("aws.requestChecksumCalculation", "WHEN_REQUIRED");
+        }
+    }
 
     @Override
     public void configure() throws Exception {

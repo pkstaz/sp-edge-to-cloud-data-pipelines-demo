@@ -1,4 +1,4 @@
-apiVersion: triggers.tekton.dev/v1alpha1
+apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
   name: train-model-template
@@ -8,7 +8,7 @@ spec:
   - name: id-edge
     description: Identifier of target edge enviroment.
   resourcetemplates:
-    - apiVersion: tekton.dev/v1beta1
+    - apiVersion: tekton.dev/v1
       kind: PipelineRun
       metadata:
         generateName: train-model-run-
@@ -24,3 +24,5 @@ spec:
           value: $(tt.params.id-edge)-ready
         - name: working_dir
           value: /data/$(tt.params.id-edge)/
+        - name: use_gpu_for_training
+          value: "false"

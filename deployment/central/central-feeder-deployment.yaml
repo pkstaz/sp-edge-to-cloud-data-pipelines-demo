@@ -1,0 +1,75 @@
+# Central feeder: HTTP POST/PUT ZIP → unzip → MinIO {edgeId}-data + Kafka (trigger + edge topic).
+# Service name must stay `feeder` for Skupper and docs.
+#
+# Image: quay.io/<org>/sp-edge-to-cloud-data-pipelines-demo:central-feeder-jvm
+# Skupper: annotation exposes this Service to the edge site (same as kubectl annotate service feeder …).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: central-feeder
+  namespace: central
+  labels:
+    app.kubernetes.io/name: central-feeder
+    app: feeder
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.openshift.io/runtime: camel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: feeder
+  template:
+    metadata:
+      labels:
+        app: feeder
+        app.kubernetes.io/name: central-feeder
+        app.openshift.io/runtime: camel
+    spec:
+      containers:
+        - name: central-feeder
+          image: quay.io/cestayg/sp-edge-to-cloud-data-pipelines-demo:central-feeder-jvm
+          imagePullPolicy: Always
+          env:
+            - name: AWS_REQUEST_CHECKSUM_CALCULATION
+              value: WHEN_REQUIRED
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: feeder-unzipped
+              mountPath: /deployments/unzipped
+            - name: feeder-tempfiles
+              mountPath: /deployments/tempfiles
+      volumes:
+        - name: feeder-unzipped
+          emptyDir: {}
+        - name: feeder-tempfiles
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feeder
+  namespace: central
+  labels:
+    app.kubernetes.io/name: central-feeder
+    app: feeder
+    app.openshift.io/runtime: camel
+  annotations:
+    skupper.io/proxy: http
+spec:
+  selector:
+    app: feeder
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

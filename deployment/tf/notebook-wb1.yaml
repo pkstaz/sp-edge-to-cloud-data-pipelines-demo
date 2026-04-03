@@ -1,0 +1,127 @@
+# Workbench Jupyter (Notebook CR) alineado con lo que crea la consola de OpenShift AI.
+# inject-auth: el operador añade kube-rbac-proxy, Secret TLS, ConfigMaps y finalizers.
+# Marcadores __...__ / bloques __*_ANNOTATIONS__: rellena apply-notebook-wb1.sh (python3).
+# Ref: kubeflow.org/v1 Notebook; RHOAI Notebook CRD.
+---
+apiVersion: kubeflow.org/v1
+kind: Notebook
+metadata:
+  name: wb1
+  namespace: tf
+  labels:
+    app: wb1
+    opendatahub.io/odh-managed: "true"
+    opendatahub.io/dashboard: "true"
+    opendatahub.io/user: "__OPENSHIFT_USER__"
+  annotations:
+    notebooks.opendatahub.io/inject-auth: "true"
+    notebooks.opendatahub.io/last-image-selection: "__IMAGE_STREAM_TAG__"
+    __GIT_COMMIT_ANNOTATION__
+    __HARDWARE_PROFILE_ANNOTATIONS__
+    opendatahub.io/connections: "tf/dc1"
+    opendatahub.io/image-display-name: "__IMAGE_DISPLAY_NAME__"
+    opendatahub.io/username: "__OPENSHIFT_USER__"
+    opendatahub.io/workbench-image-namespace: ""
+    openshift.io/description: ""
+    openshift.io/display-name: wb1
+spec:
+  template:
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: wb1
+      containers:
+        - name: wb1
+          image: __WORKBENCH_IMAGE__
+          imagePullPolicy: Always
+          workingDir: /opt/app-root/src
+          env:
+            - name: NOTEBOOK_ARGS
+              value: |-
+                --ServerApp.port=8888
+                --ServerApp.token=''
+                --ServerApp.password=''
+                --ServerApp.base_url=/notebook/tf/wb1
+                --ServerApp.quit_button=False
+            - name: JUPYTER_IMAGE
+              value: __WORKBENCH_IMAGE__
+            - name: KF_PIPELINES_SSL_SA_CERTS
+              value: /etc/pki/tls/custom-certs/ca-bundle.crt
+            - name: GIT_SSL_CAINFO
+              value: /etc/pki/tls/custom-certs/ca-bundle.crt
+            - name: PIP_CERT
+              value: /etc/pki/tls/custom-certs/ca-bundle.crt
+            - name: REQUESTS_CA_BUNDLE
+              value: /etc/pki/tls/custom-certs/ca-bundle.crt
+            - name: SSL_CERT_FILE
+              value: /etc/pki/tls/custom-certs/ca-bundle.crt
+            - name: PIPELINES_SSL_SA_CERTS
+              value: /etc/pki/tls/custom-certs/ca-bundle.crt
+          envFrom:
+            - secretRef:
+                name: dc1
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          ports:
+            - name: notebook-port
+              containerPort: 8888
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /opt/app-root/src/
+              name: wb1-storage
+            - mountPath: /opt/app-root/runtimes
+              name: elyra-dsp-details
+            - mountPath: /dev/shm
+              name: shm
+            - mountPath: /etc/pki/tls/custom-certs/ca-bundle.crt
+              name: trusted-ca
+              readOnly: true
+              subPath: ca-bundle.crt
+            - mountPath: /opt/app-root/pipeline-runtimes/
+              name: runtime-images
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /notebook/tf/wb1/api
+              port: notebook-port
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /notebook/tf/wb1/api
+              port: notebook-port
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 1
+      volumes:
+        - name: wb1-storage
+          persistentVolumeClaim:
+            claimName: wb1-storage
+        - name: elyra-dsp-details
+          secret:
+            optional: true
+            secretName: ds-pipeline-config
+        - name: shm
+          emptyDir:
+            medium: Memory
+        - name: trusted-ca
+          configMap:
+            name: workbench-trusted-ca-bundle
+            optional: true
+            items:
+              - key: ca-bundle.crt
+                path: ca-bundle.crt
+        - name: runtime-images
+          configMap:
+            name: pipeline-runtime-images
+            optional: true

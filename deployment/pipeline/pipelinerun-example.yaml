@@ -1,0 +1,19 @@
+# Manual (or install-driven) PipelineRun for train-model (optional params: Pipeline defaults).
+# Create a new run: oc create -f deployment/pipeline/pipelinerun-example.yaml
+# (use oc create, not apply: generateName requires a new object each time).
+# install-demo-steps.sh creates one run by default unless SKIP_PIPELINE_RUN=1.
+---
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: train-model-manual-
+  namespace: tf
+  labels:
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+spec:
+  pipelineRef:
+    name: train-model
+  # Sin params: el Pipeline usa CPU por defecto. Para GPU más adelante:
+  # params:
+  # - name: use_gpu_for_training
+  #   value: "true"

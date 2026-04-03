@@ -15,7 +15,7 @@
 
 
     <route id="s3-reader">
-        <from uri="aws2-s3:{{edge.id}}-ready"/>
+        <from uri="aws2-s3:{{edge.id}}-ready?{{camel.uri.s3.central.parameters}}"/>
 
         <log message="file is: ${header.CamelAwsS3Key}"/>
 
@@ -48,13 +48,15 @@
         <log message="uploaded: ${header.CamelAwsS3Key}"/>
 
         <!-- Models contain multiple files. We send only 1 notification -->
-        <when>
-            <simple>${header.CamelAwsS3Key} contains "saved_model.pb"</simple>
-            <setBody>
-                <simple>{"name":"pushmodel"}</simple>
-            </setBody>
-            <to uri="{{mqtt.uri.monitor}}"/>
-        </when>
+        <choice>
+            <when>
+                <simple>${header.CamelAwsS3Key} contains "saved_model.pb"</simple>
+                <setBody>
+                    <simple>{"name":"pushmodel"}</simple>
+                </setBody>
+                <to uri="{{mqtt.uri.monitor}}"/>
+            </when>
+        </choice>
     </route>
 
 

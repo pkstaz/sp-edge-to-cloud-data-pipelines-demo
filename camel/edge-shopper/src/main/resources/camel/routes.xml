@@ -235,14 +235,10 @@
             <constant>application/json</constant>
         </setHeader>
 
-        <!-- <to uri="language:constant:resource:classpath:trainable.json"/> -->
         <to uri="{{camel.uri.config.training}}"/>
 
         <setBody>
-
-            <!-- <jsonpath>$[?(@.item == '${header.item}')].price</jsonpath> -->
-            <!-- <jq>.[] | select(.label!="Unknown product").label</jq> -->
-            <jq>.[].label</jq>
+            <jq>[.[] | select(.trainable == true) | .label]</jq>
         </setBody>
         <marshal>
             <json/>

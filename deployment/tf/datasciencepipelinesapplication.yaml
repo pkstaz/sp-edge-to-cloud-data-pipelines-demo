@@ -1,0 +1,32 @@
+# OpenShift AI 3.x — Pipeline server via DataSciencePipelinesApplication (DSPA).
+# Equivale a Projects → Pipelines → Configure pipeline server con data connection existente.
+# Requisitos: Secret dc1 (S3) en el mismo namespace; MinIO en central alcanzable desde tf.
+# Ref: https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/3.3/html/working_with_ai_pipelines/working_with_ai_pipelines
+# CRD: datasciencepipelinesapplications.opendatahub.io/v1 (shortName: dspa)
+---
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: dspa
+  namespace: tf
+spec:
+  dspVersion: v2
+  apiServer:
+    deploy: true
+    enableSamplePipeline: false
+  # Metadatos de pipelines (KFP): MariaDB gestionada por el operador en el namespace del proyecto.
+  database:
+    mariaDB:
+      deploy: true
+  # Artefactos y almacén de objetos: mismo bucket/credenciales que la data connection dc1.
+  objectStorage:
+    externalStorage:
+      scheme: http
+      host: minio-service.central.svc
+      port: "9000"
+      bucket: workbench
+      secure: false
+      s3CredentialsSecret:
+        secretName: dc1
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY

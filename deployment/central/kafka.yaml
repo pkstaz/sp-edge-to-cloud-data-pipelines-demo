@@ -1,12 +1,46 @@
-kind: Kafka
+# Kafka cluster for the demo (Strimzi / Red Hat AMQ Streams, KRaft).
+#
+# Compatibility (validate before apply):
+# - Requires AMQ Streams with Strimzi 0.46+ (ZooKeeper-based Kafka CR is no longer supported).
+# - apiVersion kafka.strimzi.io/v1beta2 for Kafka and KafkaNodePool.
+# - Annotations strimzi.io/node-pools and strimzi.io/kraft must be enabled on the Kafka CR.
+# - spec.kafka.version must be in the operator's supported list (e.g. 4.0.0, 4.1.0). Check:
+#     oc explain kafka.spec.kafka.version
+#   If NotReady shows UnsupportedKafkaVersionException, set version and metadataVersion per
+#   the examples in your operator's Strimzi release (e.g. metadataVersion 4.0-IV3 for 4.0.0).
+# - Single-node demo: one KafkaNodePool with roles [controller, broker], replication factors 1.
+#
 apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: dual-role
+  namespace: central
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  replicas: 1
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: ephemeral
+  kraftMetadata: shared
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
 metadata:
   name: my-cluster
   namespace: central
+  annotations:
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
 spec:
   kafka:
-    version: 3.6.0
-    replicas: 1
+    version: 4.0.0
+    metadataVersion: 4.0-IV3
     listeners:
       - name: plain
         port: 9092
@@ -22,13 +56,6 @@ spec:
       transaction.state.log.min.isr: 1
       default.replication.factor: 1
       min.insync.replicas: 1
-      inter.broker.protocol.version: '3.6'
-    storage:
-      type: ephemeral
-  zookeeper:
-    replicas: 1
-    storage:
-      type: ephemeral
   entityOperator:
     topicOperator: {}
     userOperator: {}

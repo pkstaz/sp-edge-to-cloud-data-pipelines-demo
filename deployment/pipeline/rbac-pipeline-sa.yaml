@@ -1,0 +1,28 @@
+# ServiceAccount usada por el EventListener (event-listener.yaml).
+# RoleBinding al ClusterRole "edit" del proyecto para poder crear PipelineRuns.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline
+  namespace: tf
+  labels:
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.kubernetes.io/component: tekton-triggers
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-edit
+  namespace: tf
+  labels:
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.kubernetes.io/component: tekton-triggers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+  - kind: ServiceAccount
+    name: pipeline
+    namespace: tf

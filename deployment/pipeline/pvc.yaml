@@ -1,12 +1,20 @@
+# PVC compartido para los pods de tareas del Pipeline Tekton (Elyra → OpenShift Pipelines).
+# No es el almacén de artefactos del DataSciencePipelinesApplication (KFP v2 / DSPA): ese usa S3 (dc1).
+# OpenShift Pipelines recientes exponen Pipeline/PipelineRun como tekton.dev/v1; el PVC sigue siendo core v1.
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: pipeline-pvc
   namespace: tf
+  labels:
+    app.kubernetes.io/part-of: rhoai-transfer-learning-demo
+    app.kubernetes.io/component: tekton-pipeline-workspace
 spec:
   accessModes:
     - ReadWriteOnce
-  volumeMode: Filesystem
   resources:
     requests:
       storage: 2Gi
+  # Descomenta y ajusta si tu clúster no asigna StorageClass por defecto:
+  # storageClassName: gp3-csi
