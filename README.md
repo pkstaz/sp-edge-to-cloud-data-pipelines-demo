@@ -1,18 +1,33 @@
-# rhods-transfer-learning
+# Solution Pattern: Edge-to-Core Data Pipelines for AI/ML
 
-This project contains resources to showcase a full circle continuous motion of data to capture training data, train new ML models, deploy them, serve them, and expose the service for clients to send inference requests.
+The Edge-to-Core Data Pipelines for AI/ML solution pattern describes architectures where edge devices generate data (for example images) that must be collected, processed, and stored at the edge before it is used to train AI/ML models in the core data centre or cloud.
 
-   > [!INFO]
-   > This project has been updated based on the repository referenced below,
-   > and the deployment has been validated/built with support for OpenShift 4.20 and OpenShift AI 3.3.
-   >
-   > For a newer and improved version of this demo, including updated deployment scripts and detailed documentation, see:
-   > * https://github.com/brunoNetId/sp-edge-to-cloud-data-pipelines-demo
-   >
-   > This repository preserves the original implementation for reference.
+This repository demonstrates the full loop: capture training data, train new models, deploy and serve them, and expose inference for client applications.
 
-RHODS artifacts are not YAML editable, they require UI interaction. \
-Although tedious and time consuming, by the end of the deployment procedure (below), you will be able to understand how the full cycle connects all the stages together (acquisition, training, delivery, inferencing).
+> [!NOTE]
+> **This branch** is the maintained, workshop-ready variant validated on **OpenShift 4.20** and **OpenShift AI 3.3**, with current operators, **`install-demo-steps.sh`** automation, and the detailed manual procedure below. It evolves the public solution pattern and the earlier demo at [**brunoNetId/sp-edge-to-cloud-data-pipelines-demo**](https://github.com/brunoNetId/sp-edge-to-cloud-data-pipelines-demo); that upstream README still lists older “Tested with” product versions (for example OpenShift 4.12, RHOAI 2.8, Camel K 1.10.x).
+
+> [!IMPORTANT]
+> The edge **price-engine** integration in this demo uses **Apache Camel K** (OperatorHub community **2.x**). Red Hat’s developer focus also includes [**Camel JBang**](https://camel.apache.org/manual/camel-jbang.html), [**Kaoto**](https://kaoto.io), and the [**Red Hat build of Apache Camel**](https://developers.redhat.com/products/redhat-build-of-apache-camel/overview); future revisions of this pattern may align integrations with that toolchain instead of Camel K.
+
+## Solution pattern context
+
+- [**Solution Pattern home page**](https://redhat-solution-patterns.github.io/solution-pattern-edge-to-cloud-pipelines/solution-pattern-edge-to-core-pipelines/index.html) — narrative, diagrams, and background for Edge-to-Core pipelines.
+
+Several OpenShift AI steps (data connections, workbenches, pipeline server configuration) are driven from the dashboard and are not a single “apply-all” YAML. Walking through the manual sections below shows how acquisition, training, delivery, and inferencing connect end to end.
+
+## Tested with (this branch)
+
+Target versions are defined in **`validate-cluster-operators.sh`** and should match:
+
+* OpenShift **4.20.x**
+* OpenShift Data Foundation **4.20**
+* OpenShift AI **3.3.0**
+* OpenShift Pipelines **1.21.1**
+* AMQ Streams **3.1.0**
+* AMQ Broker **7.12**
+* **Apache Camel K** (community operator from OperatorHub) **2.x** — CSV is matched with substring **`2.`** in **`validate-cluster-operators.sh`** (excludes legacy **1.10.x** Red Hat–only line)
+* Red Hat Service Interconnect (Skupper) **2.1.3**
 
 ## Cluster
 
@@ -28,24 +43,24 @@ Do this first: obtain a running OpenShift cluster and confirm it meets the opera
 
 ### Requirements (operators and versions)
 
-Target versions are defined in `validate-cluster-operators.sh` and should match this list. After `oc login`, run the following from the root of this repository (repeat if you add or upgrade operators):
+The matrix above is the source of truth; it must match `validate-cluster-operators.sh`. After `oc login`, run the following from the root of this repository (repeat if you add or upgrade operators):
 
 ```bash
 bash validate-cluster-operators.sh
 ```
 
-* OpenShift **4.20.x**
-* OpenShift Data Foundation **4.20**
-* OpenShift AI **3.3.0**
-* OpenShift Pipelines **1.21.1**
-* AMQ Streams **3.1.0**
-* AMQ Broker **7.12**
-* **Apache Camel K** (community operator from OperatorHub) **2.x** — CSV is matched with substring **`2.`** in `validate-cluster-operators.sh` (excludes legacy **1.10.x** Red Hat–only line)
-* Red Hat Service Interconnect (Skupper) **2.1.3**
-
 The script exits with a non-zero status if the cluster minor version, any listed operator, or an installed version does not match; `install-demo-steps.sh` stops the install when validation fails.
 
 ## Deployment instructions
+
+### Clone this repository
+
+```bash
+git clone https://github.com/pkstaz/sp-edge-to-cloud-data-pipelines-demo.git
+cd sp-edge-to-cloud-data-pipelines-demo
+```
+
+Use your fork’s clone URL if you work from a different GitHub organisation.
 
 The following list summarises the steps to deploy the demo **after** [Cluster](#cluster) (environment ready, `oc` logged in, and validation as needed):
 
@@ -56,13 +71,95 @@ The following list summarises the steps to deploy the demo **after** [Cluster](#
 1. Deploy the data ingestion system.
 1. Test the end to end solution.
 
-**Scripted install / uninstall:** from the repository root, **`bash install-demo-steps.sh`** provisions **`central`** (MinIO, then Kafka **`deployment/central/kafka.yaml`** unless **`SKIP_KAFKA=1`**), S3 buckets/uploads, project **`tf`**, workbench sync, Tekton **`train-model`** (**`deployment/pipeline/pipeline.yaml`** + **`rbac-pipeline-sa.yaml`**; **Trigger** / **EventListener** YAMLs unless **`SKIP_TEKTON_TRIGGERS=1`**; **`deployment/central/central-delivery-deployment.yaml`** unless **`SKIP_CENTRAL_DELIVERY=1`** (Quay **`:central-delivery-jvm`**); **`deployment/central/central-feeder-deployment.yaml`** unless **`SKIP_CENTRAL_FEEDER=1`** (Quay **`:central-feeder-jvm`**); then **`oc create -f deployment/pipeline/pipelinerun-example.yaml`** and waits for **Succeeded** unless **`SKIP_PIPELINE_RUN=1`**, timeout **`PIPELINE_RUN_TIMEOUT`** seconds, default **7200**), and in **`edge1`** (unless skipped): AMQ (**`deployment/edge/amq-broker.yaml`**, route **`broker-amq-mqtt`**) — requires **AMQ Broker Operator 7.12** — and edge MinIO (**`deployment/edge/minio.yaml`**, **`deployment/edge/minio-edge-buckets.sh`**). Skips: **`SKIP_EDGE1_AMQ=1`**, **`SKIP_EDGE1_MINIO=1`**, **`SKIP_EDGE1_MINIO_BUCKETS=1`**. **Skupper (RHSI):** by default **`install-demo-steps.sh`** runs **`deployment/si/skupper-link-minio.sh`** after edge MinIO. It **checks** that **`skupper`** is on your `PATH` and that **`skupper version`** works; it does **not** download or upgrade the CLI (install or upgrade Skupper on your machine yourself — see below). Skip with **`SKIP_SKUPPER_LINK=1`**. **Edge Manager:** after Skupper, the installer applies **`deployment/edge/edge-manager-deployment.yaml`** (needs the image already on Quay). Skip with **`SKIP_EDGE_MANAGER=1`**. **Edge Monitor:** then **`deployment/edge/edge-monitor-deployment.yaml`** (Quay **`:edge-monitor-jvm`**; Kafka in **`central`** + MQTT on edge). Skip with **`SKIP_EDGE_MONITOR=1`**. **TensorFlow Serving:** then **`deployment/edge/tensorflow.yaml`** (**`tf-server`**, model from MinIO **`production`**). Skip with **`SKIP_TF_SERVING=1`**. **Camel K price-engine:** registry secret **`camel-k-registry`**, **`deployment/edge/integration-platform-camel-k.yaml`** (namespace **`EDGE1_NS`**), ConfigMap **`catalogue`**, **`kamel run`** for **`camel/edge-shopper/camel-price/price-engine.xml`**, wait **Ready**, Route **`price-engine`**. Requires **Camel K operator 2.x**, **`kamel` CLI** on **`PATH`**, and a user token that can push to the internal registry. Skip with **`SKIP_EDGE1_CAMEL_K=1`**. **Edge Shopper:** **`deployment/edge/edge-shopper-deployment.yaml`** (Quay **`:edge-shopper-jvm`**), same ConfigMap **`catalogue`** mounted at **`/deployments/config`**, Route **`camel-edge`** → Service **`edge-shopper`**. Skip with **`SKIP_EDGE_SHOPPER=1`**. At the end of **`install-demo-steps.sh`**, the installer prints **`https://<route-host>/index.html`** and **`…/admin.html`** using the live **`oc get route camel-edge`** host (skip printing with **`SKIP_EDGE_SHOPPER_URLS=1`**). **`bash uninstall-demo-steps.sh`** deletes Tekton resources and projects **`tf`** / **`central`**, and **by default deletes the whole `edge1` project** (MinIO, AMQ, Skupper site there, edge-manager, edge-monitor, edge-shopper, tf-server, Camel K resources, routes). To keep the **`edge1`** namespace and remove only selected resources: **`SKIP_EDGE1_PROJECT_DELETE=1`** (optional **`SKIP_EDGE1_MINIO_UNINSTALL=1`**, **`SKIP_EDGE1_AMQ_UNINSTALL=1`**, **`SKIP_EDGE_MONITOR_UNINSTALL=1`**, **`SKIP_EDGE_SHOPPER_UNINSTALL=1`**, **`SKIP_EDGE1_CAMEL_K_UNINSTALL=1`**). Other skips: **`SKIP_TEKTON_UNINSTALL=1`**.
+**Scripted installation and uninstallation**
 
-**Container images (Quay):** not built by **`install-demo-steps.sh`**. Build and push once with **`bash deployment/build-push-images.sh`** (default **JVM** builds **edge-manager**, **edge-monitor**, **edge-shopper**, **central-delivery**, and **central-feeder**; uses **podman**; **`CONTAINER_ENGINE=docker`** to override). GraalVM native is deferred — **`BACKLOG.md`**. One Quay repository **`sp-edge-to-cloud-data-pipelines-demo`** with differentiated tags (e.g. **`:edge-manager-jvm`**, **`:edge-monitor-jvm`**, **`:edge-shopper-jvm`**, **`:central-delivery-jvm`**, **`:central-feeder-jvm`**). See **`deployment/sp-demo-images.env.sh`**.
+From the repository root, you can use the scripts to automate most setup and teardown actions. The main script is `install-demo-steps.sh`. Below is a more readable breakdown of what happens during installation and what is affected by skip variables:
+
+### `install-demo-steps.sh` will:
+
+**Central environment:**
+- Set up the `central` project:
+  - Deploy MinIO.
+  - Deploy Kafka (`deployment/central/kafka.yaml`) unless you set `SKIP_KAFKA=1`.
+  - Create S3 buckets and upload initial data.
+  - Create the `tf` project (for data science workloads).
+  - Sync workbench and prepare environment.
+  - Deploy and configure Tekton pipeline for training:
+    - Deploy `deployment/pipeline/pipeline.yaml` and `rbac-pipeline-sa.yaml`.
+    - Deploy Tekton Triggers/EventListener unless `SKIP_TEKTON_TRIGGERS=1`.
+  - Deploy application components:
+    - `central-delivery` (`deployment/central/central-delivery-deployment.yaml`) unless `SKIP_CENTRAL_DELIVERY=1` (image: `:central-delivery-jvm` on Quay).
+    - `central-feeder` (`deployment/central/central-feeder-deployment.yaml`) unless `SKIP_CENTRAL_FEEDER=1` (image: `:central-feeder-jvm` on Quay).
+  - Launch example pipeline run (`oc create -f deployment/pipeline/pipelinerun-example.yaml`) and wait for completion, unless `SKIP_PIPELINE_RUN=1`. Timeout can be set via `PIPELINE_RUN_TIMEOUT` (default: 7200 seconds).
+
+**Edge1 environment (unless skipped):**
+- Deploy AMQ Broker (`deployment/edge/amq-broker.yaml`, route: `broker-amq-mqtt`). Requires **AMQ Broker Operator 7.12**.
+  - Skip with `SKIP_EDGE1_AMQ=1`.
+- Deploy Edge MinIO (`deployment/edge/minio.yaml` and `deployment/edge/minio-edge-buckets.sh`).
+  - Skip with `SKIP_EDGE1_MINIO=1` (MinIO) or `SKIP_EDGE1_MINIO_BUCKETS=1` (buckets only).
+
+**Skupper (Red Hat Service Interconnect):**
+- By default, runs `deployment/si/skupper-link-minio.sh` after Edge MinIO.
+  - Checks `skupper` is present and responds to `skupper version`. (Script does not install or upgrade Skupper CLI—this must be done manually.)
+  - Skip with `SKIP_SKUPPER_LINK=1`.
+
+**Additional Edge1 components:**
+- **Edge Manager:** Deploys `deployment/edge/edge-manager-deployment.yaml` (requires image to be pre-built and published on Quay).
+  - Skip with `SKIP_EDGE_MANAGER=1`.
+- **Edge Monitor:** Deploys `deployment/edge/edge-monitor-deployment.yaml` (image: `:edge-monitor-jvm` on Quay; communicates with Kafka in central and MQTT on edge).
+  - Skip with `SKIP_EDGE_MONITOR=1`.
+- **TensorFlow Serving:** Deploys `deployment/edge/tensorflow.yaml` (`tf-server`, serving model from MinIO `production` bucket).
+  - Skip with `SKIP_TF_SERVING=1`.
+- **Camel K Price Engine:** 
+  - Requires registry secret (`camel-k-registry`), platform config (`deployment/edge/integration-platform-camel-k.yaml`), ConfigMap `catalogue`.
+  - Runs: `kamel run camel/edge-shopper/camel-price/price-engine.xml`, waits for "Ready", and exposes `price-engine` route.
+  - Requires Camel K Operator 2.x, `kamel` CLI installed, and image push privileges.
+  - Skip with `SKIP_EDGE1_CAMEL_K=1`.
+- **Edge Shopper:**
+  - Deploys `deployment/edge/edge-shopper-deployment.yaml` (image: `:edge-shopper-jvm`), mounts ConfigMap `catalogue`, exposes route `camel-edge` (service `edge-shopper`).
+  - Skip with `SKIP_EDGE_SHOPPER=1`.
+
+**Final Step:**
+- At the end, prints the URLs for `index.html` and `admin.html` using the live `oc get route camel-edge` hostname.
+  - Skip with `SKIP_EDGE_SHOPPER_URLS=1`.
+
+### Uninstallation (`uninstall-demo-steps.sh`)
+
+- Deletes Tekton resources, as well as the `tf` and `central` projects.
+- By default, deletes the entire `edge1` project and all associated resources (MinIO, AMQ, Skupper site, edge-manager, edge-monitor, edge-shopper, tf-server, Camel K resources, routes).
+- To **keep** the `edge1` namespace but remove selected services:
+  - Set `SKIP_EDGE1_PROJECT_DELETE=1` and optionally:
+    - `SKIP_EDGE1_MINIO_UNINSTALL=1`
+    - `SKIP_EDGE1_AMQ_UNINSTALL=1`
+    - `SKIP_EDGE_MONITOR_UNINSTALL=1`
+    - `SKIP_EDGE_SHOPPER_UNINSTALL=1`
+    - `SKIP_EDGE1_CAMEL_K_UNINSTALL=1`
+- To skip Tekton resource deletion: `SKIP_TEKTON_UNINSTALL=1`.
+
+---
+
+**Container images (Quay):**
+
+- Images are **not** built/managed by `install-demo-steps.sh`.
+- Build and push all required containers using:
+  
+  ```bash
+  bash deployment/build-push-images.sh
+  ```
+  - Default is JVM mode for:
+    - `edge-manager`
+    - `edge-monitor`
+    - `edge-shopper`
+    - `central-delivery`
+    - `central-feeder`
+  - Uses `podman` by default. Use `CONTAINER_ENGINE=docker` to switch to Docker.
+  - (GraalVM native builds are not yet included; see `BACKLOG.md`).
+- All images are pushed as tags to one Quay repo: `sp-edge-to-cloud-data-pipelines-demo` (e.g. `:edge-manager-jvm`, `:edge-monitor-jvm`, etc.).
+- See `deployment/sp-demo-images.env.sh` for referenced images and tags.
 
 <br/>
 
-### Create a RHODS project
+### Create a RHOAI project
 
 1. Deploy an instance of Minio
    
@@ -74,7 +171,7 @@ The following list summarises the steps to deploy the demo **after** [Cluster](#
    
    1. Open the Minio UI (2 routes: use _UI Route_)
    2. Login with `minio/minio123`
-   3. Create buckets for RHODS:
+   3. Create buckets for RHOAI:
       * **workbench**
    3. Create buckets for Edge-1:
       * **edge1-data**
@@ -91,7 +188,7 @@ The following list summarises the steps to deploy the demo **after** [Cluster](#
 
 1. Create a new *Data Science Project*.
 
-   Open *Red Hat OpenShift AI* (also known as RHODS). \
+   Open *Red Hat OpenShift AI* (RHOAI). \
    Log in using your environment credentials. \
    Select *Data Science Projects* and click `Create data science project`. \
    As a name, use for example `tf` (TensorFlow).

@@ -21,7 +21,7 @@ set -euo pipefail
 : "${MINIO_ROOT_USER:=minio}"
 : "${MINIO_ROOT_PASSWORD:=minio123}"
 
-ALIAS=demo-rhods
+ALIAS=demo-rhoai
 mc alias set "$ALIAS" "$MINIO_ENDPOINT" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
 
 BUCKETS=(workbench edge1-data edge1-models edge1-ready)

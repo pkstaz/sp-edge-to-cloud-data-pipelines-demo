@@ -253,7 +253,7 @@ print_edge_shopper_urls() {
 }
 
 # =============================================================================
-# 1. Provision a RHODS environment
+# 1. Provision a RHOAI environment
 # =============================================================================
 # README > Cluster > Request: Red Hat OpenShift AI 3 (RHDP)
 #   https://catalog.demo.redhat.com/catalog?item=babylon-catalog-prod/published.openshift-ai-v3.prod&utm_source=webapp&utm_medium=share-link

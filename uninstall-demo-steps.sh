@@ -107,7 +107,7 @@ if [[ "${SKIP_TEKTON_UNINSTALL:-}" != "1" ]] && "$OC" get namespace "$TF_NS" &>/
 fi
 
 # =============================================================================
-# 2. Create and prepare a RHODS project — reverso
+# 2. Create and prepare a RHOAI project — reverso
 # =============================================================================
 
 # 2.3 README — Data Science project tf (antes que central: orden inverso al install)
