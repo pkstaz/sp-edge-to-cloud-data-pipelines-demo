@@ -32,6 +32,9 @@ spec:
           env:
             - name: AWS_REQUEST_CHECKSUM_CALCULATION
               value: WHEN_REQUIRED
+            # Skupper listener «feeder» en edge1 (puerto 8080); sobrescribe application.properties
+            - name: CAMEL_URI_FEEDER
+              value: http:feeder:8080/zip
             - name: KUBERNETES_NAMESPACE
               valueFrom:
                 fieldRef:

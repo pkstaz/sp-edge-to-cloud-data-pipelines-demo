@@ -112,6 +112,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Always defined for set -u; override with EDGE1_NS=my-ns before running.
 EDGE1_NS="${EDGE1_NS:-edge1}"
 
+echo "[install-demo-steps] Starting · EDGE1_NS=${EDGE1_NS} · OC=${OC} · $(date -u +%Y-%m-%dT%H:%MZ)"
+
 # Installer does not install Skupper CLI; validates before 3.d unless SKIP_SKUPPER_LINK=1.
 validate_skupper_cli_for_install() {
   [[ "${SKIP_SKUPPER_LINK:-}" == "1" ]] && return 0
@@ -269,15 +271,31 @@ if [[ "${SKIP_CLUSTER_VALIDATION:-}" != "1" ]]; then
     echo "Log in with oc before validation: oc login …" >&2
     exit 1
   }
+  echo ""
+  echo "============================================================================="
+  echo " Step 1.b — Cluster / operator validation (running now…)"
+  echo "============================================================================="
+  echo "  → validate-cluster-operators.sh prints each check as it runs."
+  echo "  → First API call (oc get csv -A) may take a while; dots (.) show it is waiting."
+  echo "============================================================================="
+  echo ""
   if ! bash "$SCRIPT_DIR/validate-cluster-operators.sh"; then
     echo "Cluster/operator validation failed; install aborted." >&2
     exit 1
   fi
+  echo ""
+  echo "[install-demo-steps] Validation OK — continuing with namespaces, MinIO, and the rest of the demo…"
+  echo ""
+else
+  echo "[install-demo-steps] SKIP_CLUSTER_VALIDATION=1 — skipping validate-cluster-operators.sh"
 fi
 
 # =============================================================================
 # 2. Create and prepare projects (central + tf)
 # =============================================================================
+
+echo "[install-demo-steps] Step 2 — central + tf (MinIO, Kafka, buckets, workbench, Tekton, edge…) — this can take many minutes."
+echo ""
 
 # 2.1 README — MinIO in project central (deployment/central/minio.yaml)
 CENTRAL_NS=central

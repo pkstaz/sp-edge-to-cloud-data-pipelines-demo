@@ -42,7 +42,7 @@ REC_BROKER_PATTERN="amq-broker"
 REC_BROKER_VER="7.12"
 REC_CAMEL_PATTERN="camel-k-operator|camel-k|camel-k-community"
 # Community Camel K 2.x (2.9, 2.10, …); substring match on CSV name/version — excludes Red Hat 1.x line
-REC_CAMEL_VER="2."
+REC_CAMEL_VER="2.9.1"
 REC_SKUPPER_PATTERN="skupper-operator"
 REC_SKUPPER_VER="2.1.3"
 
@@ -52,8 +52,28 @@ PROVIDER_APACHE="The Apache Software Foundation"
 
 # jsonpath evita JSON completo: algunos CSV traen anotaciones/descripciones con
 # caracteres de control y jq falla con "control characters ... must be escaped".
-CSV_LINES=$("$OC" get csv -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.status.phase}{"\t"}{.spec.version}{"\t"}{.metadata.creationTimestamp}{"\n"}{end}' 2>/dev/null) \
-  || { echo "$ICON_MISSING cannot list CSVs (logged in? cluster up?)"; exit 1; }
+fetch_csv_lines() {
+  printf '%s\n' "$ICON_SECTION Consultando ClusterServiceVersions en todos los namespaces (oc get csv -A)…" >&2
+  printf '%s' "  Esperando al API de OpenShift " >&2
+  (
+    while true; do
+      printf '.' >&2
+      sleep 1
+    done
+  ) &
+  local dot_pid=$!
+  local out
+  if ! out=$("$OC" get csv -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.status.phase}{"\t"}{.spec.version}{"\t"}{.metadata.creationTimestamp}{"\n"}{end}' 2>/dev/null); then
+    kill "$dot_pid" 2>/dev/null || true
+    wait "$dot_pid" 2>/dev/null || true
+    printf '\n' >&2
+    return 1
+  fi
+  kill "$dot_pid" 2>/dev/null || true
+  wait "$dot_pid" 2>/dev/null || true
+  printf ' listo.\n' >&2
+  printf '%s' "$out"
+}
 
 # $1 = uno o varios substrings separados por | (cualquiera que case en metadata.name del CSV).
 pick_csv() {
@@ -120,27 +140,36 @@ else
   rc=1
 fi
 
-glance_ok=()
-glance_issue=()
+CSV_LINES=$(fetch_csv_lines) || {
+  echo "$ICON_MISSING cannot list CSVs (logged in? cluster up?)" >&2
+  exit 1
+}
+
+OP_CHECK_TOTAL=7
+OP_CHECK_I=0
 
 # $1 título (como en operador), $2 proveedor, $3 patrón CSV, $4 versión recomendada (fragmento README)
 run_check() {
   local title="$1" vendor="$2" pattern="$3" want="$4"
   __status=
+  OP_CHECK_I=$((OP_CHECK_I + 1))
+  printf '  [%d/%d] %s … ' "$OP_CHECK_I" "$OP_CHECK_TOTAL" "$title"
   if check_pair "$pattern" "$want"; then
     # if/elif: con set -e, [[ … ]] && … falla en falso y aborta el script.
     if [[ "$__status" == "ok" ]]; then
-      glance_ok+=("$ICON_OK $title provided by $vendor · $__csv_ver · recomendado: $want")
+      printf '%s provided by %s · %s · recomendado: %s\n' "$ICON_OK" "$vendor" "$__csv_ver" "$want"
     elif [[ "$__status" == "warn" ]]; then
-      glance_issue+=("$ICON_WARN $title provided by $vendor · $__csv_ver · recomendado: $want")
+      printf '%s provided by %s · %s · recomendado: %s\n' "$ICON_WARN" "$vendor" "$__csv_ver" "$want"
       rc=1
     fi
   else
     rc=1
-    glance_issue+=("$ICON_MISSING $title provided by $vendor · no instalado · recomendado: $want")
+    printf '%s provided by %s · no instalado · recomendado: %s\n' "$ICON_MISSING" "$vendor" "$want"
   fi
 }
 
+echo
+echo "$ICON_SECTION === Operators (one-by-one) ==="
 run_check "OpenShift Data Foundation" "$PROVIDER_REDHAT" "$REC_ODF_PATTERN" "$REC_ODF_VER"
 run_check "OpenShift AI" "$PROVIDER_REDHAT" "$REC_RHOAI_PATTERN" "$REC_RHOAI_VER"
 run_check "OpenShift Pipelines" "$PROVIDER_REDHAT" "$REC_PIPE_PATTERN" "$REC_PIPE_VER"
@@ -150,15 +179,10 @@ run_check "Camel K Operator" "$PROVIDER_APACHE" "$REC_CAMEL_PATTERN" "$REC_CAMEL
 run_check "Red Hat Service Interconnect" "$PROVIDER_REDHAT" "$REC_SKUPPER_PATTERN" "$REC_SKUPPER_VER"
 
 echo
-echo "$ICON_SECTION === Operaators ==="
-if [[ ${#glance_ok[@]} -gt 0 ]]; then
-  for g in "${glance_ok[@]}"; do echo "$g"; done
-fi
-if [[ ${#glance_issue[@]} -gt 0 ]]; then
-  for g in "${glance_issue[@]}"; do echo "$g"; done
-fi
-if [[ ${#glance_ok[@]} -eq 0 && ${#glance_issue[@]} -eq 0 ]]; then
-  echo "$ICON_WARN (sin datos)"
+if [[ "$rc" -eq 0 ]]; then
+  echo "$ICON_OK Validación de operadores: OK (alineado con README / este script)."
+else
+  echo "$ICON_MISSING Validación fallida: revisa las líneas marcadas con $ICON_WARN o $ICON_MISSING arriba."
 fi
 
 exit "$rc"

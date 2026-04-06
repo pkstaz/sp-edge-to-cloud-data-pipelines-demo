@@ -45,6 +45,13 @@ if ! "$OC" get svc minio-service -n "$CENTRAL_NS" &>/dev/null; then
   exit 1
 fi
 
+if ! "$OC" get svc feeder -n "$CENTRAL_NS" &>/dev/null; then
+  echo "Aviso: no hay service feeder en $CENTRAL_NS (central-feeder). El listener Skupper «feeder» se omite." >&2
+  FEEDER_SVC_MISSING=1
+else
+  FEEDER_SVC_MISSING=0
+fi
+
 skupper_cli_family() {
   # v2: «site create»; v1: «init»
   if skupper site create --help &>/dev/null; then
@@ -70,6 +77,11 @@ run_skupper_v1() {
   echo "Skupper CLI v1: anotar MinIO central como minio-central..."
   "$OC" project "$CENTRAL_NS"
   "$OC" annotate service minio-service skupper.io/proxy=http skupper.io/address=minio-central --overwrite
+
+  if [[ "${FEEDER_SVC_MISSING:-0}" != "1" ]]; then
+    echo "Skupper CLI v1: anotar feeder (central-feeder) para exposición en $EDGE1_NS..."
+    "$OC" annotate service feeder skupper.io/proxy=http --overwrite -n "$CENTRAL_NS"
+  fi
 }
 
 skupper_site_exists() {
@@ -125,6 +137,38 @@ run_skupper_v2() {
   if [[ "${lst:-}" != "Ready" ]]; then
     echo "  Aviso: Listener no llegó a Ready en 300s (status=${lst:-?}). Revisa: oc get listener,connector -n $EDGE1_NS $CENTRAL_NS" >&2
   fi
+
+  if [[ "${FEEDER_SVC_MISSING:-0}" == "1" ]]; then
+    return 0
+  fi
+
+  echo "Skupper CLI v2: Listener feeder:8080 en $EDGE1_NS (ZIP → central-feeder)..."
+  "$OC" project "$EDGE1_NS"
+  skupper listener delete feeder 2>/dev/null || \
+    "$OC" delete listeners.skupper.io feeder -n "$EDGE1_NS" --ignore-not-found --wait=true 2>/dev/null || true
+  skupper listener create feeder 8080 --wait configured
+
+  echo "Skupper CLI v2: Connector HTTP central-feeder (puerto 8080) en $CENTRAL_NS..."
+  "$OC" project "$CENTRAL_NS"
+  skupper connector delete feeder 2>/dev/null || \
+    "$OC" delete connectors.skupper.io feeder -n "$CENTRAL_NS" --ignore-not-found --wait=true 2>/dev/null || true
+  skupper connector create feeder 8080 --selector app=feeder --wait ready
+
+  echo "Skupper CLI v2: esperando Listener feeder Ready en $EDGE1_NS..."
+  "$OC" project "$EDGE1_NS"
+  deadline=$((SECONDS + 300))
+  lf=""
+  while ((SECONDS < deadline)); do
+    lf=$("$OC" get listeners.skupper.io feeder -n "$EDGE1_NS" -o jsonpath='{.status.status}' 2>/dev/null || true)
+    if [[ "$lf" == "Ready" ]]; then
+      echo "  Listener feeder: Ready"
+      break
+    fi
+    sleep 4
+  done
+  if [[ "${lf:-}" != "Ready" ]]; then
+    echo "  Aviso: Listener feeder no Ready en 300s (status=${lf:-?})." >&2
+  fi
 }
 
 family=$(skupper_cli_family)
@@ -138,6 +182,7 @@ case "$family" in
     ;;
 esac
 
-echo "Listo. En $EDGE1_NS debería existir el servicio minio-central (puerto 9000 API S3)."
-echo "  Prueba (opcional consola MinIO puerto 9090): oc project $EDGE1_NS && oc create route edge minio-central-demo --service=minio-central --port=port9090"
-echo "  Elimina la ruta de prueba: oc delete route minio-central-demo -n $EDGE1_NS --ignore-not-found"
+echo "Listo. En $EDGE1_NS: minio-central:9000 (S3) y, si aplica, feeder:8080 (ZIP al central-feeder)."
+echo "  Prueba MinIO consola: oc project $EDGE1_NS && oc create route edge minio-central-demo --service=minio-central --port=port9090"
+echo "  Elimina ruta prueba: oc delete route minio-central-demo -n $EDGE1_NS --ignore-not-found"
+echo "  Comprueba: oc get svc -n $EDGE1_NS | grep -E 'minio-central|feeder'"
