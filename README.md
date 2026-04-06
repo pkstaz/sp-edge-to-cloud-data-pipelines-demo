@@ -36,7 +36,7 @@ Do this first: obtain a running OpenShift cluster and confirm it meets the opera
 ### Request an OpenShift environment
 
 1. Provision an environment from the [Red Hat Demo Platform](https://demo.redhat.com/), selecting **Red Hat OpenShift AI 3**: \
-   https://catalog.demo.redhat.com/catalog?item=babylon-catalog-prod/published.openshift-ai-v3.prod&utm_source=webapp&utm_medium=share-link \
+   [Catalog entry — Red Hat OpenShift AI 3](https://catalog.demo.redhat.com/catalog?item=babylon-catalog-prod/published.openshift-ai-v3.prod&utm_source=webapp&utm_medium=share-link) \
    This is the validated environment for installing this demo.
 
 2. When the cluster is ready, open the **OpenShift web console** with the credentials provided for the sandbox, and run **`oc login`** against the same cluster API.
